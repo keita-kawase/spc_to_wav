@@ -1,25 +1,80 @@
 require "spc700.rb"
 require "dsp.rb"
+require "spcfile.rb"
+require "wavwrite.rb"
 # main.rb
 SDSP_SAMPLE_RATE = 32000
 CPU_CYCLES_PER_SAMPLE = 32
 class SpcEngine
-    attr_accessor :dsp, :cpu, :loaded, :cycle_accum
-  
-    def initialize(dsp: nil, cpu: nil, loaded: 0, cycle_accum: 0)
-      @dsp = dsp
-      @cpu = cpu
-      @loaded = loaded
-      @cycle_accum = cycle_accum
+  attr_accessor :cpu, :dsp, :loaded, :cycle_accum
+
+  def initialize
+    @cpu = SpcCpu.new
+    @dsp = SpcDsp.new
+    @loaded = false
+    @cycle_accum = 0
+  end
+
+  def engine_load(parsed)
+    @dsp.init(@cpu.ram)
+    @cpu.init(@dsp)
+
+    # RAMコピー
+    @cpu.ram = parsed.ram.dup
+    @dsp.ram = @cpu.ram
+
+    # CPUレジスタ
+    @cpu.a  = parsed.a
+    @cpu.x  = parsed.x
+    @cpu.y  = parsed.y
+    @cpu.sp = parsed.sp
+    @cpu.pc = parsed.pc
+    @cpu.set_psw(parsed.psw)
+
+    # DSPレジスタ
+    @dsp.reset
+    @dsp.regs = parsed.dsp_regs.dup
+
+    # IOレジスタ同期
+    io_regs = [0xfa, 0xfb, 0xfc, 0xf1]
+    io_regs.each do |addr|
+      @cpu.write(addr, parsed.ram[addr])
     end
+
+    4.times do |i|
+      @cpu.io_in[i]  = parsed.ram[0xf4 + i]
+      @cpu.io_out[i] = parsed.ram[0xf4 + i]
+    end
+
+    # タイマ初期化
+    3.times do |i|
+      @cpu.timer_counter[i] = 0
+      @cpu.timer_out[i]     = 0
+      @cpu.t_accum[i]       = 0
+    end
+
+    @loaded = true
+    @cycle_accum = 0
+  end
+
+  def engine_render_sample
+    return [0.0, 0.0] unless @loaded
+
+    budget = CPU_CYCLES_PER_SAMPLE + @cycle_accum
+    guard = 0
+
+    while budget > 0 && guard < 64
+      used = @cpu.step
+      budget -= used
+      guard += 1
+    end
+
+    @cycle_accum = budget
+
+    @dsp.generate_sample
+  end
 end
-def engine_load(eng,parsed)
-    dsp_init(eng.dsp, eng.cpu.ram)
-    spc700_init(eng.cpu, eng.dsp)
-end
-def engine_render_sample(eng,outL,outR) 
-    
-end
+
 #くそコード注意
 SDSP_SAMPLE_RATE = 32000 unless defined?(SDSP_SAMPLE_RATE)
 
