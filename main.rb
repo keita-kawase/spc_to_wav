@@ -1,3 +1,4 @@
+require "spc700.rb"
 SDSP_SAMPLE_RATE = 32000
 CPU_CYCLES_PER_SAMPLE = 32
 class SpcEngine
