@@ -42,7 +42,8 @@ class SPC700
       @timer_out[t] = 0
       v
     end
-  
+    
+      
     def read(addr)
       addr &= 0xffff
       case addr
@@ -118,7 +119,7 @@ class SPC700
         (@flag_b << 4) | (@flag_h << 3) | (@flag_i << 2) |
         (@flag_z << 1) | @flag_c
     end
-  
+    
     def psw=(v)
       v &= 0xff
       @flag_n = (v >> 7) & 1
@@ -708,4 +709,3 @@ class SPC700
       end
     end
   end
-  
